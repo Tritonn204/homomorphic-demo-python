@@ -1,0 +1,80 @@
++-----------------------------------------------------------+
+|                  Homomorphic Cryptography Package                |
++-----------------------------------------------------------+
+                 |
+         +-------+-------+
+         |               |
++--------v-----+  +------v-------+
+|   main.py    +->|    demos/    |
++--------^-----+  +------+-------+
+         |               |
+         +-------+-------+
+                 |
+         +-------v-------+
+  +------+------+--+------+-------+------+-------+
+  |             |  |              |             |
++-v--+     +----v-+  +----v-----+ | +----------v--+
+|utils|     |schemes|  |  zkp    | | | blockchain  |
++----+     +-------+  +----------+ | +-------------+
+                                   |
+                  +----------------+
+                  |
+       +----------v------------+
+       | Blockchain Features:  |
+       | - Thread-safe access  |
+       | - Transaction scanning|
+       | - Block mining        |
+       | - ZK transaction      |
+       |   support             |
+       +----------------------+
+
++------------------+               +------------------+
+|     BEFORE       |               |     AFTER        |
++------------------+               +------------------+
+|                  |               |                  |
+| paillier.py      |               |    +-------+     |
+| pedersen elgamal.|      =>       |    | utils |     |
+| primes.py        |               |    +-------+     |
+| ring pedersen el.|               |    |schemes|     |
+| zk pedersen elga.|               |    +-------+     |
+| zkp.py           |               |    |  zkp  |     |
+|                  |               |    +-------+     |
+|                  |               |    |blockchain|  |
+|                  |               |    +-------+     |
+|                  |               |    | demos |     |
+|                  |               |    +-------+     |
+|                  |               |    |main.py|     |
+|                  |               |    +-------+     |
++------------------+               +------------------+
+
+File Organization:
+-----------------
+
+homomorphic_crypto/
+│
+├── utils/                   # Utility functions
+│   ├── primes.py            # Prime number generation and tests
+│   └── math_helpers.py      # Common math functions
+│
+├── schemes/                 # Cryptographic schemes
+│   ├── paillier.py          # Paillier homomorphic encryption
+│   ├── pedersen_elgamal.py  # Pedersen commitment + ElGamal encryption
+│   └── ring_pedersen_elgamal.py  # Ring signature enhancements
+│
+├── zkp/                     # Zero-knowledge proofs
+│   ├── base.py              # Base ZKP classes
+│   └── zk_pedersen_elgamal.py  # ZKP with Pedersen+ElGamal
+│
+├── blockchain/              # Blockchain state management
+│   ├── base.py              # Block and Blockchain classes
+│   ├── state_manager.py     # Thread-safe blockchain state manager
+│   └── zk_integration.py    # ZK integration with blockchain
+│
+├── demos/                   # Demonstration programs
+│   ├── paillier_demo.py     # Paillier encryption demo
+│   ├── pedersen_elgamal_demo.py  # Pedersen+ElGamal demo
+│   ├── ring_demo.py         # Ring signature demo
+│   ├── zk_demo.py           # Zero-knowledge proof demo
+│   └── blockchain_demo.py   # Blockchain with ZK transactions demo
+│
+└── main.py                  # Main entry point for all demos
