@@ -12,6 +12,16 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from zkp.zk_pedersen_elgamal import ZKPedersenElGamal, ZKAccount, ZKPointEncoder
+from tinyec import registry
+from tinyec.ec import Point
+
+from utils.math_helpers import safe_equals
+
+def reconstruct_ciphertext_from_dict(data, curve_name='secp192r1'):
+    curve = registry.get_curve(curve_name)
+    c1 = Point(curve, data['ciphertext_c1_x'], data['ciphertext_c1_y'])
+    c2 = Point(curve, data['ciphertext_c2_x'], data['ciphertext_c2_y'])
+    return (c1, c2)
 
 class ZKTransaction:
     """A zero-knowledge transaction that can be added to the blockchain."""
@@ -69,7 +79,7 @@ class ZKBlockchainWallet:
         # Register for blockchain events
         self.blockchain.add_listener('block_mined', self._on_block_mined)
     
-    def send_transaction(self, recipient: 'ZKBlockchainWallet', amount: float) -> bool:
+    def send_transaction(self, recipient, amount: float) -> bool:
         """Send private transaction to recipient via blockchain."""
         if amount > self.get_balance():
             print(f"Insufficient balance: {self.get_balance()} < {amount}")
@@ -109,17 +119,25 @@ class ZKBlockchainWallet:
         
         for tx_info in transactions:
             tx = tx_info['transaction']
-            
+
             # Skip already processed transactions
             if tx.get('tx_id') in self.spent_nullifiers:
                 continue
+
+            print("After spent check")
             
             # Check if this transaction is for us
-            if tx.get('recipient_pk_x') == my_pk_x:
+            if safe_equals(tx.get('recipient_pk_x'), my_pk_x):
                 # In a real system we would decrypt the amount and verify the proof
                 # For the demo, we assume the blockchain contains verified transactions only
-                amount = 1.0  # Simplified
-                
+                # amount = self.zk_system.constant_time_decrypt()
+                ciphertext = reconstruct_ciphertext_from_dict(tx)
+                amount = self.zk_system.constant_time_decrypt(
+                  ciphertext, 
+                  self.account.sk,
+                  None
+                )
+
                 # Update local state
                 self.account.balance += amount
                 self.account.transactions.append({

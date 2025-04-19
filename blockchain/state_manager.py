@@ -27,9 +27,20 @@ class BlockchainStateManager:
             for tx in self.mempool:
                 self.blockchain.add_transaction(tx)
             self.mempool = []
-            
+
+            # Create a mining reward transaction (simplified)
+            reward_tx = {
+                'sender': 'COINBASE',
+                'recipient': miner_address,
+                'amount': 1.0,
+                'timestamp': time.time()
+            }
+
+            # Add reward transaction to list
+            self.blockchain.add_transaction(reward_tx)
+                
             # Mine the block
-            new_block = self.blockchain.mine_pending_transactions(miner_address)
+            new_block = self.blockchain.mine_pending_transactions()
             
             # Notify listeners if block was mined
             if new_block:
@@ -41,11 +52,6 @@ class BlockchainStateManager:
         """Scan blockchain for transactions involving address."""
         with self.lock:
             return self.blockchain.scan_for_transactions(address)
-    
-    def get_balance(self, address: str) -> float:
-        """Get the current balance of an address."""
-        with self.lock:
-            return self.blockchain.get_balance(address)
     
     def add_listener(self, event_type: str, callback: Callable) -> None:
         """Add a callback function for blockchain events."""

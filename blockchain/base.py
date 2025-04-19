@@ -9,6 +9,7 @@ from typing import List, Dict, Any, Optional
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.merkle import MerkleTree
+from utils.math_helpers import safe_equals
 
 class Block:
     """Basic block structure for the blockchain."""
@@ -117,29 +118,18 @@ class Blockchain:
         self.pending_transactions.append(transaction)
         return True
     
-    def mine_pending_transactions(self, miner_address: str) -> Optional[Block]:
+    def mine_pending_transactions(self) -> Optional[Block]:
         """Create a new block with pending transactions and mine it."""
         if not self.pending_transactions:
             print("No pending transactions to mine")
             return None
-        
-        # Create a mining reward transaction (simplified)
-        reward_tx = {
-            'sender': 'BLOCKCHAIN_REWARD',
-            'recipient': miner_address,
-            'amount': 1.0,
-            'timestamp': time.time()
-        }
-        
-        # Add reward transaction to list
-        transactions = self.pending_transactions + [reward_tx]
         
         # Create new block
         latest_block = self.get_latest_block()
         block = Block(
             latest_block.index + 1,
             time.time(),
-            transactions,
+            self.pending_transactions,
             latest_block.hash
         )
         
@@ -195,14 +185,14 @@ class Blockchain:
                     return is_valid, block.index, i
         
         return False, None, None
-    
+
     def scan_for_transactions(self, address: str) -> List[Dict[str, Any]]:
         """Scan the blockchain for transactions involving an address."""
         transactions = []
         
         for block in self.chain:
             for tx in block.transactions:
-                if tx.get('sender') == address or tx.get('recipient') == address:
+                if safe_equals(tx.get('sender_pk_x'), address) or safe_equals(tx.get('recipient_pk_x'), address):
                     transactions.append({
                         'block_index': block.index,
                         'block_hash': block.hash,
@@ -217,9 +207,9 @@ class Blockchain:
         
         for block in self.chain:
             for tx in block.transactions:
-                if tx.get('recipient') == address:
+                if tx.get('sender_pk_x') == address:
                     balance += float(tx.get('amount', 0))
-                if tx.get('sender') == address:
+                if tx.get('recipient_pk_x') == address:
                     balance -= float(tx.get('amount', 0))
         
         return balance

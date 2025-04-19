@@ -7,3 +7,9 @@ def lcm(a, b):
 def L(x, n):
     """Compute the L-function used in Paillier cryptosystem."""
     return (x - 1) // n
+
+def safe_equals(x, y):
+    try:
+        return int(str(x).strip()) == int(str(y).strip())
+    except Exception:
+        return False
