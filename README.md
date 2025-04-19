@@ -1,6 +1,6 @@
 # Homomorphic Cryptography Demo
 
-This repository contains a well-organized version of the homomorphic cryptography demonstration code with blockchain state management and proper Merkle tree verification. The code demonstrates various homomorphic encryption schemes, zero-knowledge proof systems, and blockchain interaction with comprehensive unit tests.
+The code demonstrates various homomorphic encryption schemes, zero-knowledge proof systems, and blockchain interaction with comprehensive unit tests.
 
 ## Project Structure
 
@@ -107,15 +107,3 @@ The codebase includes comprehensive unit tests to ensure correctness:
 - **Block Tests**: Verify block integrity, hash calculation, and transaction verification
 - **Blockchain Tests**: Verify chain integrity, block mining, and transaction validation
 - **Automated Test Runner**: Easy test execution with detailed reporting
-
-## Benefits of the Reorganization
-
-1. **Easier to Understand**: Logical organization of related functionality.
-2. **Simpler to Extend**: Add new schemes without modifying existing code.
-3. **Better Testability**: Components can be tested individually.
-4. **Improved Maintainability**: Changes to one module don't affect others.
-5. **Proper Separation of Concerns**: Each module handles one aspect of functionality.
-
-## Original Code Credits
-
-This is a reorganized version of the original homomorphic-demo-python codebase.
