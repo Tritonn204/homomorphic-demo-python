@@ -3,6 +3,8 @@ import hashlib
 from tinyec import registry
 from tinyec.ec import Point
 
+TABLE_MAX = 1000
+
 class PedersenElGamal:
     def __init__(self, curve_name='secp256r1'):
         # System setup
@@ -16,8 +18,8 @@ class PedersenElGamal:
         self.H = h_value * self.G
         
         # For simplicity: Tables for small values to help with "discrete log" problem
-        self.G_TABLE = {i: i * self.G for i in range(100)}
-        self.LOOKUP_G = {(i * self.G).x: i for i in range(100)}  # Simple lookup by x-coordinate
+        self.G_TABLE = {i: i * self.G for i in range(TABLE_MAX)}
+        self.LOOKUP_G = {(i * self.G).x: i for i in range(TABLE_MAX)}  # Simple lookup by x-coordinate
     
     def pedersen_commit(self, value, blinding_factor):
         """Create a Pedersen commitment to a value."""
@@ -42,7 +44,7 @@ class PedersenElGamal:
         
         # In a real system, we might use more sophisticated methods to extract amount
         # This is a simplified approach for small values
-        for i in range(100):
+        for i in range(TABLE_MAX):
             if self.G_TABLE[i].x == amount_point.x:
                 return i
         return None  # Cannot determine exact amount
