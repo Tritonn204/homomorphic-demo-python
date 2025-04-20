@@ -5,8 +5,17 @@ from tinyec import registry
 from tinyec.ec import Point
 from .pedersen_elgamal import PedersenElGamal
 
+# Import constants
+from constants import (
+    DEFAULT_CURVE,
+    DEFAULT_STEALTH_ACCOUNT_NAME_PREFIX,
+    RANDOM_ACCOUNT_ID_MIN,
+    RANDOM_ACCOUNT_ID_MAX,
+    TX_HISTORY_DISPLAY_COUNT
+)
+
 class RingPedersenElGamal(PedersenElGamal):
-    def __init__(self, curve_name='secp256r1'):
+    def __init__(self, curve_name=DEFAULT_CURVE):
         super().__init__(curve_name)
     
     def generate_stealth_address(self, recipient_view_pk, recipient_spend_pk):
@@ -99,7 +108,7 @@ class RingPedersenElGamal(PedersenElGamal):
 class StealthAccount:
     def __init__(self, crypto_system, name=None):
         self.crypto_system = crypto_system
-        self.name = name if name else f"Stealth-Account-{random.randint(1000, 9999)}"
+        self.name = name if name else f"{DEFAULT_STEALTH_ACCOUNT_NAME_PREFIX}{random.randint(RANDOM_ACCOUNT_ID_MIN, RANDOM_ACCOUNT_ID_MAX)}"
         
         # Generate view keypair (for detecting incoming transactions)
         self.view_sk, self.view_pk = crypto_system.twisted_elgamal_keygen()
@@ -151,6 +160,6 @@ class StealthAccount:
         print(f"Spend Public Key: ({self.spend_pk.x}, {self.spend_pk.y})")
         print(f"Received Funds: {len(self.received_funds)} transactions")
         print(f"Recent Transactions:")
-        for txn in self.transaction_history[-3:]:
+        for txn in self.transaction_history[-TX_HISTORY_DISPLAY_COUNT:]:
             print(f"  {txn}")
         print()

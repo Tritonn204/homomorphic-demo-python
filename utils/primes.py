@@ -2,6 +2,8 @@ import random
 import sympy
 from math import gcd
 
+from constants import PRIME_GEN_MIN_FACTOR, PRIME_GEN_ATTEMPTS, PRIME_BIT_LENGTHS
+
 def lcm(a, b):
     return abs(a * b) // gcd(a, b)
 
@@ -10,8 +12,8 @@ def L(x, n):
 
 def test_key_generation(bit_length):
     try:
-        # Generate primes in the upper-middle part of the range (75-90% of max)
-        lower_bound = int(2**(bit_length-1) + (2**bit_length - 2**(bit_length-1)) * 0.75)
+        # Generate primes in the upper-middle part of the range using the constant factor
+        lower_bound = int(2**(bit_length-1) + (2**bit_length - 2**(bit_length-1)) * PRIME_GEN_MIN_FACTOR)
         upper_bound = 2**bit_length - 1
         
         p = sympy.randprime(lower_bound, upper_bound)
@@ -44,17 +46,17 @@ def find_working_primes_by_size():
     print("-----------------------------------------")
     successful_primes = {}
     
-    for bit_length in [8, 16, 32, 64, 128, 256, 512, 1024]:
+    for bit_length in PRIME_BIT_LENGTHS:
         print(f"Testing {bit_length}-bit primes...", end=" ")
         
-        # Try up to 3 times for each bit length
-        for attempt in range(3):
+        # Try up to the configured number of attempts for each bit length
+        for attempt in range(PRIME_GEN_ATTEMPTS):
             result = test_key_generation(bit_length)
             
             if isinstance(result, tuple) and len(result) >= 3:
                 success, p, q = result
                 if not success:
-                    if attempt == 2:  # Last attempt
+                    if attempt == PRIME_GEN_ATTEMPTS - 1:  # Last attempt
                         print(f"Failed: ")
                     continue
             else:
@@ -68,7 +70,7 @@ def find_working_primes_by_size():
                 print(f"Approximate decimal digits: {len(str(p))}")
                 print("-----------------------------------------")
                 break
-            elif attempt == 2:  # Last attempt
+            elif attempt == PRIME_GEN_ATTEMPTS - 1:  # Last attempt
                 print("Failed after multiple attempts")
     
     return successful_primes

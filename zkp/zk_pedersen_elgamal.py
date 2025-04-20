@@ -9,6 +9,19 @@ from .base import TransactionProof, RangeProof
 from tinyec import registry
 from tinyec.ec import Point
 
+from constants import (
+    SMALL_CURVE,
+    MAX_VALUE_RANGE,
+    TX_MIN_AMOUNT,
+    TX_MAX_AMOUNT,
+    PEDERSEN_H_GENERATOR_SEED,
+    DEFAULT_ZK_ACCOUNT_NAME_PREFIX,
+    RANDOM_ACCOUNT_ID_MIN,
+    RANDOM_ACCOUNT_ID_MAX,
+    TX_HISTORY_DISPLAY_COUNT,
+    TX_ID_LENGTH
+)
+
 class JsonSerializable:
     def to_dict(self):
         raise NotImplementedError("Must implement to_dict()")
@@ -47,18 +60,18 @@ class ZKPoint(Point, JsonSerializable):
         return cls.from_dict(json.loads(json_str))
 
 class ZKPedersenElGamal:
-    def __init__(self, curve_name='secp192r1'):
+    def __init__(self, curve_name=SMALL_CURVE):
         # Cryptographic Primitives
         self.curve = registry.get_curve(curve_name)  # Speed is more important for demo
         self.G = self.curve.g
         self.q = self.curve.field.n
         
         # Create second generator for Pedersen commitments
-        h_seed = hashlib.sha256(b"PEDERSEN_H_GENERATOR").digest()
+        h_seed = hashlib.sha256(PEDERSEN_H_GENERATOR_SEED).digest()
         h_value = int.from_bytes(h_seed, byteorder="big") % self.q
         self.H = h_value * self.G
         
-        self.MAX_VALUE_RANGE = 10000
+        self.MAX_VALUE_RANGE = MAX_VALUE_RANGE
         self.VALUE_POINTS = {}
     
     def generate_value_table(self, max_range=None):
@@ -143,7 +156,7 @@ class ZKPedersenElGamal:
         
         return c == expected_c
     
-    def range_proof(self, v, min_val=0, max_val=100):
+    def range_proof(self, v, min_val=TX_MIN_AMOUNT, max_val=TX_MAX_AMOUNT):
         """Generate a zero-knowledge range proof for v in [min_val, max_val].
         
         This is a simulated efficient range proof (not a full Bulletproof implementation).
@@ -200,7 +213,7 @@ class ZKPedersenElGamal:
         recipient_ciphertext = (tx_randomness * self.G, amount * self.G + tx_randomness * recipient_pk)
         
         # Step 3: Create a range proof to prove amount is positive without revealing it
-        amount_range_proof = self.range_proof(amount, 0, 10000)
+        amount_range_proof = self.range_proof(amount, TX_MIN_AMOUNT, TX_MAX_AMOUNT)
         
         # Step 4: If we know sender's balance, create proof that balance >= amount
         balance_sufficient_proof = None
@@ -210,7 +223,7 @@ class ZKPedersenElGamal:
             
             # Create proof that balance - amount >= 0
             # In reality this would be a proper ZK proof, here we simulate
-            balance_sufficient_proof = self.range_proof(sender_balance - amount, 0, 10000)
+            balance_sufficient_proof = self.range_proof(sender_balance - amount, TX_MIN_AMOUNT, TX_MAX_AMOUNT)
         
         # Step 5: Sign the transaction
         message = f"{recipient_pk.x}:{recipient_pk.y}:{amount}:{tx_randomness}"
@@ -261,7 +274,7 @@ class ZKAccount:
     """Account with private transaction support using ZK proofs."""
     def __init__(self, zk_system, name=None):
         self.zk_system = zk_system
-        self.name = name if name else f"ZKAccount-{random.randint(1000, 9999)}"
+        self.name = name if name else f"{DEFAULT_ZK_ACCOUNT_NAME_PREFIX}{random.randint(RANDOM_ACCOUNT_ID_MIN, RANDOM_ACCOUNT_ID_MAX)}"
         self.sk, self.pk = self._generate_keypair()
         self.balance = 0
         self.transactions = []
@@ -299,7 +312,7 @@ class ZKAccount:
             'recipient': recipient.name,
             'amount': amount,
             'timestamp': time.time(),
-            'tx_id': hashlib.sha256(f"{time.time()}:{self.pk.x}:{recipient.pk.x}:{amount}".encode()).hexdigest()[:8]
+            'tx_id': hashlib.sha256(f"{time.time()}:{self.pk.x}:{recipient.pk.x}:{amount}".encode()).hexdigest()[:TX_ID_LENGTH]
         })
         
         # Tell recipient to receive
@@ -327,7 +340,7 @@ class ZKAccount:
             'sender': f"Account-{tx['sender_pk'].x % 10000}",
             'amount': amount,
             'timestamp': time.time(),
-            'tx_id': hashlib.sha256(f"{time.time()}:{tx['sender_pk'].x}:{self.pk.x}:{amount}".encode()).hexdigest()[:8]
+            'tx_id': hashlib.sha256(f"{time.time()}:{tx['sender_pk'].x}:{self.pk.x}:{amount}".encode()).hexdigest()[:TX_ID_LENGTH]
         })
         
         print(f"{self.name} received {amount}")
@@ -341,7 +354,7 @@ class ZKAccount:
         
         if self.transactions:
             print(f"\nRecent Transactions:")
-            for tx in self.transactions[-3:]:
+            for tx in self.transactions[-TX_HISTORY_DISPLAY_COUNT:]:
                 if tx['type'] == 'deposit':
                     print(f"  Deposit: +{tx['amount']}")
                 elif tx['type'] == 'send':

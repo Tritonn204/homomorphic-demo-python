@@ -3,17 +3,25 @@ import hashlib
 from tinyec import registry
 from tinyec.ec import Point
 
-TABLE_MAX = 1000
+# Import constants
+from constants import (
+    TABLE_MAX, 
+    PEDERSEN_H_GENERATOR_SEED, 
+    DEFAULT_CURVE, 
+    DEFAULT_ACCOUNT_NAME_PREFIX,
+    RANDOM_ACCOUNT_ID_MIN,
+    RANDOM_ACCOUNT_ID_MAX
+)
 
 class PedersenElGamal:
-    def __init__(self, curve_name='secp256r1'):
+    def __init__(self, curve_name=DEFAULT_CURVE):
         # System setup
         self.curve = registry.get_curve(curve_name)
         self.G = self.curve.g
         self.q = self.curve.field.n
         
         # Create second generator H for Pedersen commitments
-        h_seed = hashlib.sha256(b"PEDERSEN_H_GENERATOR").digest()
+        h_seed = hashlib.sha256(PEDERSEN_H_GENERATOR_SEED).digest()
         h_value = int.from_bytes(h_seed, byteorder="big") % self.q
         self.H = h_value * self.G
         
@@ -59,7 +67,7 @@ class PedersenElGamal:
 class Account:
     def __init__(self, crypto_system, name=None):
         self.crypto_system = crypto_system
-        self.name = name if name else f"Account-{random.randint(1000, 9999)}"
+        self.name = name if name else f"{DEFAULT_ACCOUNT_NAME_PREFIX}{random.randint(RANDOM_ACCOUNT_ID_MIN, RANDOM_ACCOUNT_ID_MAX)}"
         self.sk, self.pk = crypto_system.twisted_elgamal_keygen()
         self.balance = 0
         self.encrypted_balance = None
@@ -118,6 +126,6 @@ class Account:
         print(f"  C1: ({c1.x}, {c1.y})")
         print(f"  C2: ({c2.x}, {c2.y})")
         print(f"Recent Transactions:")
-        for txn in self.transaction_history[-3:]:
+        for txn in self.transaction_history[-TX_HISTORY_DISPLAY_COUNT:]:
             print(f"  {txn}")
         print()
