@@ -25,19 +25,21 @@ def reconstruct_ciphertext_from_dict(data, curve_name='secp192r1'):
 
 class ZKTransaction:
     """A zero-knowledge transaction that can be added to the blockchain."""
-    def __init__(self, sender_pk, recipient_pk, ciphertext, proof, signature):
+    def __init__(self, sender_pk, recipient_pk, ciphertext, proof, signature, sender_address=None, recipient_address=None):
         self.sender_pk = sender_pk
         self.recipient_pk = recipient_pk
         self.ciphertext = ciphertext
         self.proof = proof
         self.signature = signature
         self.timestamp = time.time()
+        self.sender_address = sender_address or f"{self.sender_pk.x}:{self.sender_pk.y}"
+        self.recipient_address = recipient_address or f"{self.recipient_pk.x}:{self.recipient_pk.y}"
         self.tx_id = self._generate_tx_id()
     
     def _generate_tx_id(self) -> str:
         """Generate a unique transaction ID."""
         # In a real system, this would use more sophisticated ID generation
-        data = f"{self.sender_pk.x}:{self.recipient_pk.x}:{self.timestamp}"
+        data = f"{self.sender_address}:{self.recipient_address}:{self.timestamp}"
         return hashlib.sha256(data.encode()).hexdigest()[:16]
     
     def to_dict(self) -> Dict[str, Any]:
@@ -45,10 +47,8 @@ class ZKTransaction:
         c1, c2 = self.ciphertext
         return {
             'tx_id': self.tx_id,
-            'sender_pk_x': self.sender_pk.x,
-            'sender_pk_y': self.sender_pk.y,
-            'recipient_pk_x': self.recipient_pk.x,
-            'recipient_pk_y': self.recipient_pk.y,
+            'sender_address': self.sender_address,
+            'recipient_address': self.recipient_address,
             'ciphertext_c1_x': c1.x,
             'ciphertext_c1_y': c1.y,
             'ciphertext_c2_x': c2.x,
@@ -93,7 +93,8 @@ class ZKBlockchainWallet:
         # Convert to blockchain-compatible format
         zk_tx = ZKTransaction(
             self.account.pk, recipient.account.pk,
-            tx['ciphertext'], tx['amount_proof'], tx['signature']
+            tx['ciphertext'], tx['amount_proof'], tx['signature'],
+            sender_address=self.address, recipient_address=recipient.address
         )
         
         # Add to blockchain
@@ -104,6 +105,7 @@ class ZKBlockchainWallet:
         self.account.transactions.append({
             'type': 'send',
             'recipient': recipient.account.name,
+            'recipient_address': recipient.address, 
             'amount': amount,
             'tx_id': zk_tx.tx_id,
             'timestamp': time.time()
@@ -114,8 +116,8 @@ class ZKBlockchainWallet:
     
     def scan_for_transactions(self) -> None:
         """Scan blockchain for incoming transactions."""
-        my_pk_x = self.account.pk.x
-        transactions = self.blockchain.scan_for_address(f"{my_pk_x}")
+        # Use the full wallet address for scanning
+        transactions = self.blockchain.scan_for_address(self.address)
         
         for tx_info in transactions:
             tx = tx_info['transaction']
@@ -123,26 +125,26 @@ class ZKBlockchainWallet:
             # Skip already processed transactions
             if tx.get('tx_id') in self.spent_nullifiers:
                 continue
-
-            print("After spent check")
             
-            # Check if this transaction is for us
-            if safe_equals(tx.get('recipient_pk_x'), my_pk_x):
-                # In a real system we would decrypt the amount and verify the proof
-                # For the demo, we assume the blockchain contains verified transactions only
-                # amount = self.zk_system.constant_time_decrypt()
-                ciphertext = reconstruct_ciphertext_from_dict(tx)
-                amount = self.zk_system.constant_time_decrypt(
-                  ciphertext, 
-                  self.account.sk,
-                  None
-                )
+            # Check if this transaction is for us using the wallet address
+            if tx.get('recipient_address') == self.address:
+                if tx.get('amount') != None:
+                    amount = tx.get('amount')
+                else:
+                    ciphertext = reconstruct_ciphertext_from_dict(tx)
+                    amount = self.zk_system.constant_time_decrypt(
+                      ciphertext, 
+                      self.account.sk,
+                      None
+                    )
 
-                # Update local state
+                # Update local state with more data
+                sender_display = tx.get('sender_address', '').split(':')[0][:8]
                 self.account.balance += amount
                 self.account.transactions.append({
                     'type': 'receive',
-                    'sender': f"Account-{tx.get('sender_pk_x') % 10000}",
+                    'sender': sender_display,
+                    'sender_address': tx.get('sender_address'),
                     'amount': amount,
                     'tx_id': tx.get('tx_id'),
                     'timestamp': tx.get('timestamp', time.time())

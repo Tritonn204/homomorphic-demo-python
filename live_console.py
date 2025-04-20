@@ -133,7 +133,6 @@ class InteractiveBlockchainConsole(cmd.Cmd):
         
         if block:
             self.print_block_summary(block)
-            self.miner_wallet.account.deposit(1)
             self.scan_wallets()
         else:
             print("No transactions to mine.")

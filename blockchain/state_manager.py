@@ -1,5 +1,6 @@
 import time
 import threading
+import hashlib
 from typing import List, Dict, Any, Optional, Callable
 from .base import Blockchain, Block
 
@@ -28,12 +29,17 @@ class BlockchainStateManager:
                 self.blockchain.add_transaction(tx)
             self.mempool = []
 
-            # Create a mining reward transaction (simplified)
+            timestamp = time.time()
+
+            # Create a mining reward transaction
+            data = f"COINBASE:{miner_address}:{timestamp}"
+            tx_id = hashlib.sha256(data.encode()).hexdigest()[:16]
             reward_tx = {
-                'sender': 'COINBASE',
-                'recipient': miner_address,
-                'amount': 1.0,
-                'timestamp': time.time()
+                'sender_address': 'COINBASE',
+                'recipient_address': miner_address,
+                'amount': 1,
+                'timestamp': time.time(),
+                'tx_id': tx_id
             }
 
             # Add reward transaction to list

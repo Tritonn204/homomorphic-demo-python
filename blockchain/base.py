@@ -192,7 +192,9 @@ class Blockchain:
         
         for block in self.chain:
             for tx in block.transactions:
-                if safe_equals(tx.get('sender_pk_x'), address) or safe_equals(tx.get('recipient_pk_x'), address):
+                # First try to use the full address if available
+                if (tx.get('sender_address') == address or 
+                    tx.get('recipient_address') == address):
                     transactions.append({
                         'block_index': block.index,
                         'block_hash': block.hash,
@@ -207,9 +209,10 @@ class Blockchain:
         
         for block in self.chain:
             for tx in block.transactions:
-                if tx.get('sender_pk_x') == address:
+                # First check if the modern address field is available
+                if tx.get('sender_address') == address:
                     balance += float(tx.get('amount', 0))
-                if tx.get('recipient_pk_x') == address:
+                if tx.get('recipient_address') == address:
                     balance -= float(tx.get('amount', 0))
         
         return balance
