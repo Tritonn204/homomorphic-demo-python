@@ -100,6 +100,9 @@ class ZKBlockchainWallet:
             sender_address=self.address, recipient_address=recipient.address
         )
         
+        if not self.zk_system.verify_zk_transaction(zk_tx.to_dict()):
+            return False
+
         # Add to blockchain
         self.blockchain.add_transaction(zk_tx.to_dict())
         
