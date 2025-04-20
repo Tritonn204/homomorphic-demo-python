@@ -11,7 +11,7 @@ import os
 # Add the parent directory to the path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from zkp.zk_pedersen_elgamal import ZKPedersenElGamal, ZKAccount, ZKPointEncoder
+from zkp.zk_pedersen_elgamal import ZKPedersenElGamal, ZKAccount, ZKPoint
 from tinyec import registry
 from tinyec.ec import Point
 
@@ -25,11 +25,12 @@ def reconstruct_ciphertext_from_dict(data, curve_name='secp192r1'):
 
 class ZKTransaction:
     """A zero-knowledge transaction that can be added to the blockchain."""
-    def __init__(self, sender_pk, recipient_pk, ciphertext, proof, signature, sender_address=None, recipient_address=None):
+    def __init__(self, sender_pk, recipient_pk, ciphertext, amount_proof, balance_proof, signature, sender_address=None, recipient_address=None):
         self.sender_pk = sender_pk
         self.recipient_pk = recipient_pk
         self.ciphertext = ciphertext
-        self.proof = proof
+        self.amount_proof = amount_proof
+        self.balance_proof = balance_proof
         self.signature = signature
         self.timestamp = time.time()
         self.sender_address = sender_address or f"{self.sender_pk.x}:{self.sender_pk.y}"
@@ -53,7 +54,8 @@ class ZKTransaction:
             'ciphertext_c1_y': c1.y,
             'ciphertext_c2_x': c2.x,
             'ciphertext_c2_y': c2.y,
-            'proof_hash': hashlib.sha256(json.dumps(self.proof, cls=ZKPointEncoder).encode()).hexdigest(),
+            'amount_proof': self.amount_proof,
+            'balance_proof': self.balance_proof,
             'signature': self.signature,
             'timestamp': self.timestamp
         }
@@ -61,9 +63,10 @@ class ZKTransaction:
     @staticmethod
     def verify_transaction(tx_dict: Dict[str, Any], zk_system: ZKPedersenElGamal) -> bool:
         """Verify transaction validity without knowing the amount."""
-        # In a real system, we would reconstruct the points and proofs and verify them
-        # This is simplified for the demo
-        return True
+        if tx_dict.get("sender_address") == "COINBASE":
+            return True
+
+        return zk_system.verify_zk_transaction(tx_dict)
 
 
 class ZKBlockchainWallet:
@@ -87,13 +90,13 @@ class ZKBlockchainWallet:
         
         # Create private transaction with ZK proof
         tx = self.zk_system.create_zk_transaction(
-            self.account.sk, self.account.pk, recipient.account.pk, amount
+            self.account.sk, self.account.pk, recipient.account.pk, amount, self.account.balance
         )
         
         # Convert to blockchain-compatible format
         zk_tx = ZKTransaction(
             self.account.pk, recipient.account.pk,
-            tx['ciphertext'], tx['amount_proof'], tx['signature'],
+            tx['ciphertext'], tx['amount_proof'], tx['balance_proof'], tx['signature'],
             sender_address=self.address, recipient_address=recipient.address
         )
         
@@ -128,6 +131,10 @@ class ZKBlockchainWallet:
             
             # Check if this transaction is for us using the wallet address
             if tx.get('recipient_address') == self.address:
+                if not tx.get("sender_address") == "COINBASE":
+                    if not self.zk_system.verify_zk_transaction(tx):
+                        continue
+
                 if tx.get('amount') != None:
                     amount = tx.get('amount')
                 else:

@@ -1,7 +1,7 @@
 import hashlib
 import json
 from typing import List, Dict, Any, Optional, Union
-
+from zkp.zk_pedersen_elgamal import ZKProofEncoder
 
 class MerkleNode:
     """Node in a Merkle tree."""
@@ -30,7 +30,7 @@ class MerkleTree:
     
     def hash_transaction(self, transaction: Dict[str, Any]) -> str:
         """Hash a transaction dictionary."""
-        tx_string = json.dumps(transaction, sort_keys=True).encode()
+        tx_string = json.dumps(transaction, sort_keys=True, cls=ZKProofEncoder).encode()
         return hashlib.sha256(tx_string).hexdigest()
     
     def hash_pair(self, left_hash: str, right_hash: str) -> str:
