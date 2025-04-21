@@ -2,6 +2,7 @@ import random
 import hashlib
 from tinyec import registry
 from tinyec.ec import Point
+from tqdm import tqdm
 
 # Import constants
 from constants import (
@@ -24,10 +25,12 @@ class PedersenElGamal:
         h_seed = hashlib.sha256(PEDERSEN_H_GENERATOR_SEED).digest()
         h_value = int.from_bytes(h_seed, byteorder="big") % self.q
         self.H = h_value * self.G
+        self.LOOKUP_G = {}
         
         # For simplicity: Tables for small values to help with "discrete log" problem
-        self.G_TABLE = {i: i * self.G for i in range(TABLE_MAX)}
-        self.LOOKUP_G = {(i * self.G).x: i for i in range(TABLE_MAX)}  # Simple lookup by x-coordinate
+        for i in tqdm(range(TABLE_MAX), desc="Building value table"):
+            point = i * self.G
+            self.LOOKUP_G[i] = point.x  # Simple lookup by x-coordinate
     
     def pedersen_commit(self, value, blinding_factor):
         """Create a Pedersen commitment to a value."""
@@ -53,7 +56,7 @@ class PedersenElGamal:
         # In a real system, we might use more sophisticated methods to extract amount
         # This is a simplified approach for small values
         for i in range(TABLE_MAX):
-            if self.G_TABLE[i].x == amount_point.x:
+            if self.LOOKUP_G[i] == amount_point.x:
                 return i
         return None  # Cannot determine exact amount
 

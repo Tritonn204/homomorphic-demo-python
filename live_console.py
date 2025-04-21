@@ -19,11 +19,14 @@ from typing import Optional, Dict, Any, List, Tuple, Union
 # Make sure the codebase is in the path
 sys.path.insert(0, os.path.abspath("/tmp/inputs/homomorphic-demo-python"))
 
-# Import from the zkp module
+# Import the available schemes and their integrations
 from zkp.zk_pedersen_elgamal import ZKPedersenElGamal
+from schemes.ring_pedersen_elgamal import RingPedersenElGamal
 from zkp.base import RangeProof
 from blockchain.state_manager import BlockchainStateManager
 from blockchain.zk_integration import ZKBlockchainWallet, ZKTransaction
+from blockchain.ring_integration import RingBlockchainWallet, RingTransaction
+
 
 class InteractiveBlockchainConsole(cmd.Cmd):
     """Interactive console for blockchain operations with ZK protections."""
@@ -38,29 +41,45 @@ class InteractiveBlockchainConsole(cmd.Cmd):
     """
     prompt = "blockchain> "
     
-    def __init__(self, encryption_scheme: str = "pedersen-elgamal"):
+    def __init__(self, encryption_scheme: str = "zk-pedersen-elgamal"):
         super().__init__()
         self.encryption_scheme = encryption_scheme
         self.init_blockchain()
     
     def init_blockchain(self):
-        """Initialize blockchain with proper ZK setup."""
+        """Initialize blockchain with proper setup for selected scheme."""
         print(f"\nInitializing blockchain with {self.encryption_scheme} encryption scheme...")
         
-        # Initialize the zero-knowledge cryptographic system
-        if self.encryption_scheme == "pedersen-elgamal":
+        # Initialize the appropriate cryptographic system based on scheme
+        if self.encryption_scheme == "zk-pedersen-elgamal":
             try:
-                self.zk_system = ZKPedersenElGamal(curve_name='secp192r1')
+                self.crypto_system = ZKPedersenElGamal(curve_name='secp192r1')
                 
                 # Generate lookup table for constant-time decryption
-                print("Generating zero-knowledge value table for transaction verification...")
-                self.zk_system.generate_value_table(max_range=10000)
+                print("Generating elgamal value table for transaction verification...")
+                self.crypto_system.generate_value_table(max_range=10000)
                 
                 # Initialize blockchain state manager
                 self.state_manager = BlockchainStateManager()
                 
                 # Setup default wallets with initial balances
-                self.setup_default_wallets()
+                self.setup_default_wallets_zk()
+                
+                print(f"✓ Blockchain initialized with {self.encryption_scheme} encryption")
+            except Exception as e:
+                print(f"Error initializing blockchain: {str(e)}")
+                sys.exit(1)
+                
+        elif self.encryption_scheme == "ring-pedersen-elgamal":
+            try:
+                print("Generating elgamal value table for transaction verification...")
+                self.crypto_system = RingPedersenElGamal(curve_name='secp192r1')
+                
+                # Initialize blockchain state manager
+                self.state_manager = BlockchainStateManager()
+                
+                # Setup default wallets with initial balances
+                self.setup_default_wallets_ring()
                 
                 print(f"✓ Blockchain initialized with {self.encryption_scheme} encryption")
             except Exception as e:
@@ -70,18 +89,18 @@ class InteractiveBlockchainConsole(cmd.Cmd):
             print(f"Unsupported encryption scheme: {self.encryption_scheme}")
             sys.exit(1)
     
-    def setup_default_wallets(self):
-        """Create default wallets with proper addresses for the system."""
+    def setup_default_wallets_zk(self):
+        """Create default wallets with ZK handling."""
         # Create miner wallet with proper ZK handling
-        self.miner_wallet = ZKBlockchainWallet(self.zk_system, self.state_manager, "Miner")
+        self.miner_wallet = ZKBlockchainWallet(self.crypto_system, self.state_manager, "Miner")
         self.miner_address = self.miner_wallet.address
         
         # Create some user wallets for demonstration
-        self.alice = ZKBlockchainWallet(self.zk_system, self.state_manager, "Alice")
-        self.bob = ZKBlockchainWallet(self.zk_system, self.state_manager, "Bob")
-        self.charlie = ZKBlockchainWallet(self.zk_system, self.state_manager, "Charlie")
+        self.alice = ZKBlockchainWallet(self.crypto_system, self.state_manager, "Alice")
+        self.bob = ZKBlockchainWallet(self.crypto_system, self.state_manager, "Bob")
+        self.charlie = ZKBlockchainWallet(self.crypto_system, self.state_manager, "Charlie")
         
-        # Initialize with some balance using blockchain's deposit method (ensures proper ZK state)
+        # Initialize with some balance using blockchain's deposit method
         print("\nFunding initial wallets...")
         self.alice.account.deposit(50)
         self.bob.account.deposit(30)
@@ -91,35 +110,63 @@ class InteractiveBlockchainConsole(cmd.Cmd):
         self.alice.print_status()
         self.bob.print_status()
     
-    def _verify_zk_transaction_validity(self, sender_wallet: ZKBlockchainWallet, 
-                                        amount: int) -> bool:
-        """Verify if a transaction is valid using ZK proofs."""
-        # First check if the wallet has enough balance
-        current_balance = sender_wallet.get_balance()
+    def setup_default_wallets_ring(self):
+        """Create default wallets with Ring signature handling."""
+        # Create miner wallet with Ring signature handling
+        self.miner_wallet = RingBlockchainWallet(self.crypto_system, self.state_manager, "Miner")
+        self.miner_address = self.miner_wallet.address
         
-        # ZK range proof to verify amount is non-negative
-        try:
-            amount_proof = RangeProof(amount, min_value=0, max_value=current_balance)
-            if not amount_proof.verify():
-                print("ZK Proof Failed: Amount range verification failed")
-                return False
-        except ValueError as e:
-            print(f"ZK Proof Failed: {str(e)}")
-            return False
+        # Create some user wallets for demonstration
+        self.alice = RingBlockchainWallet(self.crypto_system, self.state_manager, "Alice")
+        self.bob = RingBlockchainWallet(self.crypto_system, self.state_manager, "Bob")
+        self.charlie = RingBlockchainWallet(self.crypto_system, self.state_manager, "Charlie")
         
-        # Verify sender has sufficient funds
-        if amount > current_balance:
-            print(f"ZK Proof Failed: Insufficient funds ({current_balance} < {amount})")
-            return False
+        # Initialize with some balance
+        print("\nFunding initial wallets...")
+        self.alice.deposit(50)
+        self.bob.deposit(30)
+        self.charlie.deposit(20)
         
-        # All ZK validations passed
-        return True
+        print("Initial wallet status:")
+        self.alice.print_status()
+        self.bob.print_status()
     
-    def scan_wallets(self):
-        self.alice.scan_for_transactions()
-        self.bob.scan_for_transactions()
-        self.charlie.scan_for_transactions()
-        self.miner_wallet.scan_for_transactions()
+    def _verify_transaction_validity(self, sender_wallet, amount: int) -> bool:
+        """Verify if a transaction is valid using appropriate method."""
+        if self.encryption_scheme == "zk-pedersen-elgamal":
+            # Use ZK range proofs for verification
+            current_balance = sender_wallet.get_balance()
+            
+            try:
+                amount_proof = RangeProof(amount, min_value=0, max_value=current_balance)
+                if not amount_proof.verify():
+                    print("ZK Proof Failed: Amount range verification failed")
+                    return False
+            except ValueError as e:
+                print(f"ZK Proof Failed: {str(e)}")
+                return False
+            
+            if amount > current_balance:
+                print(f"ZK Proof Failed: Insufficient funds ({current_balance} < {amount})")
+                return False
+            
+            return True
+            
+        elif self.encryption_scheme == "ring-pedersen-elgamal":
+            # For Ring signature, we just check the basic balance
+            current_balance = sender_wallet.get_balance()
+            
+            if amount <= 0:
+                print("Transaction Failed: Amount must be positive")
+                return False
+            
+            if amount > current_balance:
+                print(f"Transaction Failed: Insufficient funds ({current_balance} < {amount})")
+                return False
+            
+            return True
+        
+        raise Exception(f"Unknown encryption scheme: {self.encryption_scheme}")
 
     def do_mine(self, arg):
         """Mine a new block with pending transactions."""
@@ -128,12 +175,11 @@ class InteractiveBlockchainConsole(cmd.Cmd):
         # Use the miner wallet for rewards
         miner_address = self.miner_address
         
-        # Mine the block with ZK validation
+        # Mine the block
         block = self.state_manager.mine_block(miner_address)
         
         if block:
             self.print_block_summary(block)
-            self.scan_wallets()
         else:
             print("No transactions to mine.")
     
@@ -146,6 +192,7 @@ class InteractiveBlockchainConsole(cmd.Cmd):
         print(f"Pending transactions: {state['pending_transactions']}")
         print(f"Mempool size: {state['mempool_size']}")
         print(f"Mining difficulty: {state['difficulty']}")
+        print(f"Encryption scheme: {self.encryption_scheme}")
     
     def do_wallet_status(self, arg):
         """Display status of a specific wallet by name."""
@@ -177,7 +224,7 @@ class InteractiveBlockchainConsole(cmd.Cmd):
         print(f"4. Miner    - Address: {self.miner_wallet.address[:16]}... - Balance: {self.miner_wallet.get_balance():.2f}")
     
     def do_send(self, arg):
-        """Send funds from one wallet to another with ZK proof verification.
+        """Send funds from one wallet to another with verification.
         Usage: send <sender_name> <recipient_name> <amount>
         Example: send alice bob 15.5"""
         args = arg.split()
@@ -206,20 +253,16 @@ class InteractiveBlockchainConsole(cmd.Cmd):
             print("Error: Invalid sender or recipient wallet name")
             return
         
-        # Verify transaction with ZK proofs
-        if not self._verify_zk_transaction_validity(sender_wallet, amount):
+        # Verify transaction with appropriate method
+        if not self._verify_transaction_validity(sender_wallet, amount):
             return
         
-        # Execute transaction with ZK verification
+        # Execute transaction
         print(f"\nSending {amount} from {sender_name} to {recipient_name}...")
         result = sender_wallet.send_transaction(recipient_wallet, amount)
         
         if result:
             print(f"Transaction successful!")
-            
-            # Scan wallets for updated transaction lists
-            sender_wallet.scan_for_transactions()
-            recipient_wallet.scan_for_transactions()
         else:
             print("Transaction failed")
     
@@ -252,7 +295,7 @@ class InteractiveBlockchainConsole(cmd.Cmd):
         else:
             print(f"Block summary: {block}")
     
-    def _get_wallet_by_name(self, name: str) -> Optional[ZKBlockchainWallet]:
+    def _get_wallet_by_name(self, name: str) -> Optional[Union[ZKBlockchainWallet, RingBlockchainWallet]]:
         """Get wallet by name."""
         name = name.lower()
         if name == "alice":
@@ -293,8 +336,8 @@ class InteractiveBlockchainConsole(cmd.Cmd):
         print()
 
 
-def run_blockchain_console(encryption_scheme="pedersen-elgamal"):
-    """Start the live blockchain console with proper ZK integration."""
+def run_blockchain_console(encryption_scheme="zk-pedersen-elgamal"):
+    """Start the live blockchain console with proper integration."""
     print(f"\n==== Starting Live Blockchain Console with {encryption_scheme} ====\n")
     console = InteractiveBlockchainConsole(encryption_scheme)
     console.cmdloop()
@@ -302,10 +345,10 @@ def run_blockchain_console(encryption_scheme="pedersen-elgamal"):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Live Blockchain Console with ZK Proofs')
+    parser = argparse.ArgumentParser(description='Live Blockchain Console with ZK or Ring Proofs')
     parser.add_argument('--scheme', type=str, 
-                        choices=['pedersen-elgamal'],
-                        help='Select encryption scheme', default='pedersen-elgamal')
+                        choices=['zk-pedersen-elgamal', 'ring-pedersen-elgamal'],
+                        help='Select encryption scheme', default='zk-pedersen-elgamal')
     
     args = parser.parse_args()
     run_blockchain_console(args.scheme)

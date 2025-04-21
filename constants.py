@@ -7,7 +7,7 @@ All magic numbers and constants from across the codebase are centralized here.
 PEDERSEN_H_GENERATOR_SEED = b"PEDERSEN_H_GENERATOR"
 
 # Table size constants
-TABLE_MAX = 1000  # Max size for lookup tables in pedersen_elgamal.py
+TABLE_MAX = 10000  # Max size for lookup tables in pedersen_elgamal.py
 MAX_VALUE_RANGE = 10000  # Max range for value lookups in zk_pedersen_elgamal.py
 
 # Transaction limits

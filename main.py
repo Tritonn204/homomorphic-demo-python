@@ -48,12 +48,15 @@ def main():
                         choices=['paillier', 'pedersen', 'ring', 'zk', 'blockchain', 'merkle', 
                                 'primes', 'test', 'live', 'all'],
                         help='Select which demo to run', default='all')
+    parser.add_argument('--scheme', type=str,
+                        choices=['zk-pedersen-elgamal', 'ring-pedersen-elgamal'],
+                        help='Select encryption scheme for live demo', default='zk-pedersen-elgamal')
     
     args = parser.parse_args()
     
     if args.demo == 'live':
-        print("\n=== Starting Interactive Blockchain Console with ZK protection ===")
-        run_blockchain_console()
+        print(f"\n=== Starting Interactive Blockchain Console with {args.scheme} protection ===")
+        run_blockchain_console(args.scheme)
         return
 
     # Run the requested demo(s)

@@ -1,8 +1,11 @@
 import time
 import threading
 import hashlib
-from typing import List, Dict, Any, Optional, Callable
-from .base import Blockchain, Block
+import random
+from tinyec.ec import Point
+from tinyec import registry
+from typing import List, Dict, Any, Optional, Callable, Union
+from blockchain.base import Blockchain, Block
 
 class BlockchainStateManager:
     """Manages blockchain state and provides thread-safe access."""
@@ -14,6 +17,9 @@ class BlockchainStateManager:
         self.scanning_frequency = 10  # seconds
         self._scanning_thread = None
         self._running = False
+        
+        # Keep track of public keys for ring signatures
+        self.public_keys_registry = []
     
     def add_transaction(self, transaction: Dict[str, Any]) -> bool:
         """Add transaction to mempool in thread-safe manner."""
@@ -68,54 +74,106 @@ class BlockchainStateManager:
         for listener_type, callback in self.listeners:
             if listener_type == event_type:
                 callback(data)
-    
-    def start_background_scanning(self) -> None:
-        """Start background thread for periodic blockchain scanning."""
-        if self._scanning_thread and self._scanning_thread.is_alive():
-            print("Scanner already running")
-            return
-        
-        self._running = True
-        self._scanning_thread = threading.Thread(target=self._scanning_loop)
-        self._scanning_thread.daemon = True
-        self._scanning_thread.start()
-        print("Background scanning started")
-    
-    def stop_background_scanning(self) -> None:
-        """Stop the background scanning thread."""
-        self._running = False
-        if self._scanning_thread and self._scanning_thread.is_alive():
-            self._scanning_thread.join(timeout=2.0)
-        print("Background scanning stopped")
-    
-    def _scanning_loop(self) -> None:
-        """Background loop that scans blockchain periodically."""
-        while self._running:
-            # This is where we would implement scanning logic for waiting txs
-            with self.lock:
-                if self.mempool:
-                    self._notify_listeners('mempool_updated', len(self.mempool))
-            
-            time.sleep(self.scanning_frequency)
-    
-    def save_state(self, filename: str) -> None:
-        """Save blockchain state to file."""
-        with self.lock:
-            self.blockchain.save_to_file(filename)
-    
-    def load_state(self, filename: str) -> None:
-        """Load blockchain state from file."""
-        with self.lock:
-            self.blockchain = Blockchain.load_from_file(filename)
-            self._notify_listeners('state_loaded', len(self.blockchain.chain))
-    
+
     def get_state_summary(self) -> Dict[str, Any]:
         """Get a summary of current blockchain state."""
         with self.lock:
+            last_block_hash = self.blockchain.chain[-1].hash if self.blockchain.chain[-1] else "N/A"
+            
             return {
                 'chain_length': len(self.blockchain.chain),
-                'last_block_hash': self.blockchain.get_latest_block().hash,
+                'last_block_hash': last_block_hash,
                 'pending_transactions': len(self.blockchain.pending_transactions),
                 'mempool_size': len(self.mempool),
                 'difficulty': self.blockchain.difficulty
             }
+    
+    def get_transactions_for_address(self, address: str) -> List[Dict[str, Any]]:
+        """Get all transactions involving a given address."""
+        all_txs = []
+        
+        # Look in blocks
+        with self.lock:
+            for block in self.blockchain.chain:
+                for tx in block.transactions:
+                    if isinstance(tx, dict):
+                        if tx.get('sender_address') == address or tx.get('recipient_address') == address:
+                            all_txs.append(tx)
+                    else:
+                        # Handle non-dict transactions
+                        tx_dict = tx if isinstance(tx, dict) else getattr(tx, 'to_dict', lambda: {})()
+                        if isinstance(tx_dict, dict):
+                            if tx_dict.get('sender_address') == address or tx_dict.get('recipient_address') == address:
+                                all_txs.append(tx_dict)
+        
+        # Also check pending transactions
+        with self.lock:
+            for tx in self.blockchain.pending_transactions + self.mempool:
+                if isinstance(tx, dict):
+                    if tx.get('sender_address') == address or tx.get('recipient_address') == address:
+                        all_txs.append(tx)
+                else:
+                    # Handle non-dict transactions
+                    tx_dict = tx if isinstance(tx, dict) else getattr(tx, 'to_dict', lambda: {})()
+                    if isinstance(tx_dict, dict):
+                        if tx_dict.get('sender_address') == address or tx_dict.get('recipient_address') == address:
+                            all_txs.append(tx_dict)
+        
+        return all_txs
+    
+    def get_all_transactions(self) -> List[Dict[str, Any]]:
+        """Get all transactions in the blockchain and mempool."""
+        all_txs = []
+        
+        # Look in blocks
+        with self.lock:
+            for block in self.blockchain.chain:
+                for tx in block.transactions:
+                    if isinstance(tx, dict):
+                        all_txs.append(tx)
+                    else:
+                        # Handle non-dict transactions
+                        tx_dict = tx if isinstance(tx, dict) else getattr(tx, 'to_dict', lambda: {})()
+                        if isinstance(tx_dict, dict):
+                            all_txs.append(tx_dict)
+        
+        # Also check pending transactions
+        with self.lock:
+            for tx in self.blockchain.pending_transactions + self.mempool:
+                if isinstance(tx, dict):
+                    all_txs.append(tx)
+                else:
+                    # Handle non-dict transactions
+                    tx_dict = tx if isinstance(tx, dict) else getattr(tx, 'to_dict', lambda: {})()
+                    if isinstance(tx_dict, dict):
+                        all_txs.append(tx_dict)
+        
+        return all_txs
+    
+    def register_public_key(self, public_key: Point) -> None:
+        """Register a public key for ring signatures."""
+        if public_key not in self.public_keys_registry:
+            self.public_keys_registry.append(public_key)
+    
+    def get_random_public_keys(self, n: int, exclude: List[Point] = None, curve_name: str = 'secp192r1') -> List[Point]:
+        """Get random public keys from registry or generate new ones if needed.
+        Used for ring signatures to create anonymity set."""
+        exclude = exclude or []
+        
+        # Filter out excluded keys
+        available_keys = [pk for pk in self.public_keys_registry if pk not in exclude]
+        
+        # Generate additional keys if needed
+        if len(available_keys) < n:
+            curve = registry.get_curve(curve_name)
+            for _ in range(n - len(available_keys)):
+                # Generate a random private key
+                random_priv = random.randint(1, curve.field.n - 1)
+                random_pub = random_priv * curve.g
+                available_keys.append(random_pub)
+                self.public_keys_registry.append(random_pub)
+        
+        # Select random subset
+        selected = random.sample(available_keys, min(n, len(available_keys)))
+        
+        return selected
